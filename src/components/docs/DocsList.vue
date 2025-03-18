@@ -3,7 +3,7 @@
     <div class="p-4 border-b border-gray-200 flex justify-between items-center">
       <h2 class="text-lg font-medium text-dark">Documents</h2>
       <button 
-        @click="$emit('new')" 
+        @click="createNewDocument" 
         class="px-3 py-1 bg-primary text-white rounded-md hover:bg-blue-600 transition-colors flex items-center"
       >
         <span class="mr-1">+</span> New Doc
@@ -44,32 +44,36 @@
     </div>
     
     <div class="max-h-96 overflow-y-auto">
-      <div v-if="filteredDocs.length === 0" class="p-6 text-center text-gray-500">
+      <div v-if="!hasDocuments" class="p-6 text-center text-gray-500">
         No documents found
       </div>
       
       <div v-else>
-        <div
+        <router-link
           v-for="doc in filteredDocs"
           :key="doc.id"
-          @click="$emit('select', doc.id)"
-          :class="[
-            'p-4 border-b border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors',
-            selectedDocId === doc.id ? 'bg-blue-50' : ''
-          ]"
+          :to="`/docs/${doc.id}`"
+          class="block"
         >
-          <div class="font-medium text-dark">{{ doc.title }}</div>
-          <div class="text-sm text-gray-500 mt-1">{{ formatDate(doc.updatedAt) }}</div>
-          <div class="flex flex-wrap gap-1 mt-2">
-            <span 
-              v-for="tag in doc.tags" 
-              :key="tag"
-              class="px-1.5 py-0.5 bg-gray-200 text-gray-700 text-xs rounded-full"
-            >
-              {{ tag }}
-            </span>
+          <div
+            :class="[
+              'p-4 border-b border-gray-200 hover:bg-gray-50 cursor-pointer transition-colors',
+              selectedDocId === doc.id ? 'bg-blue-50' : ''
+            ]"
+          >
+            <div class="font-medium text-dark">{{ doc.title }}</div>
+            <div class="text-sm text-gray-500 mt-1">{{ formatDate(doc.updatedAt) }}</div>
+            <div class="flex flex-wrap gap-1 mt-2">
+              <span 
+                v-for="tag in doc.tags" 
+                :key="tag"
+                class="px-1.5 py-0.5 bg-gray-200 text-gray-700 text-xs rounded-full"
+              >
+                {{ tag }}
+              </span>
+            </div>
           </div>
-        </div>
+        </router-link>
       </div>
     </div>
   </div>
@@ -78,6 +82,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 import { format } from 'date-fns';
+import { useRouter } from 'vue-router';
 
 const props = defineProps({
   docs: {
@@ -94,16 +99,28 @@ const emit = defineEmits(['select', 'new']);
 
 const searchQuery = ref('');
 const selectedTags = ref<string[]>([]);
+const router = useRouter();
+
+// Vérifier s'il y a des documents à afficher
+const hasDocuments = computed(() => {
+  return props.docs && props.docs.length > 0;
+});
 
 const availableTags = computed(() => {
   const tags = new Set<string>();
-  props.docs.forEach((doc: any) => {
-    doc.tags.forEach((tag: string) => tags.add(tag));
-  });
+  if (props.docs) {
+    props.docs.forEach((doc: any) => {
+      if (doc.tags) {
+        doc.tags.forEach((tag: string) => tags.add(tag));
+      }
+    });
+  }
   return Array.from(tags);
 });
 
 const filteredDocs = computed(() => {
+  if (!props.docs) return [];
+  
   return props.docs.filter((doc: any) => {
     // Filter by search query
     const matchesQuery = 
@@ -130,4 +147,37 @@ const toggleTagFilter = (tag: string) => {
 const formatDate = (date: Date | string | number) => {
   return format(new Date(date), 'MMM d, yyyy');
 };
+
+// Créer un nouveau document
+const createNewDocument = () => {
+  router.push('/docs/new');
+};
 </script>
+
+<style>
+/* Ajoutez ces styles pour améliorer l'apparence */
+.router-link-active .p-4 {
+  background-color: #ebf5ff !important;
+  border-left: 3px solid #3b82f6;
+}
+
+/* Animation pour les éléments de la liste */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.block {
+  animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Style pour les tags */
+.px-1\.5 {
+  transition: all 0.2s ease;
+}
+
+.px-1\.5:hover {
+  background-color: #3b82f6;
+  color: white;
+}
+</style>

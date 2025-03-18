@@ -314,6 +314,15 @@ export const useDocsStore = defineStore('docs', () => {
     selectedDocumentId.value = id;
   }
 
+  /**
+   * Get a document by its ID
+   * @param id - ID of the document to retrieve
+   * @returns The document or null if not found
+   */
+  function getDocumentById(id: string): Document | null {
+    return documents.value.find(doc => doc.id === id) || null;
+  }
+
   return {
     documents,
     selectedDocumentId,
@@ -323,6 +332,7 @@ export const useDocsStore = defineStore('docs', () => {
     createDocument,
     updateDocument,
     deleteDocument,
-    selectDocument
+    selectDocument,
+    getDocumentById
   };
 });

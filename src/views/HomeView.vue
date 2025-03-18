@@ -2,7 +2,7 @@
 import { onMounted, computed } from 'vue';
 import { useDocsStore } from '@/stores/docs/docs';
 import { useTrackerStore } from '@/stores/tracker/tracker';
-import ActivityGrid from '@/components/tracker/ActivityGrid.vue';
+import DashboardActivityPreview from '@/components/tracker/DashboardActivityPreview.vue';
 import { format } from 'date-fns';
 import { fr } from 'date-fns/locale';
 import { useRouter } from 'vue-router';
@@ -115,7 +115,7 @@ const navigateToDoc = (docId: string) => {
         <div class="card-header">
           <h2 class="section-title">Activités</h2>
         </div>
-        <ActivityGrid />
+        <DashboardActivityPreview />
       </div>
     </div>
   </main>

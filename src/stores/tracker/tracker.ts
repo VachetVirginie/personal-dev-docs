@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
-import { format, subDays, parseISO } from 'date-fns';
+import { format, subDays, parseISO, addDays, startOfMonth, endOfMonth, eachDayOfInterval } from 'date-fns';
 
 /**
  * Interface representing activities for a specific date
@@ -107,7 +107,111 @@ export const useTrackerStore = defineStore('tracker', () => {
     return result;
   }
 
-  // Actions
+  /**
+   * Get activities for a specific month
+   * @param year - Year
+   * @param month - Month (0-11)
+   * @returns Object with dates as keys and activities as values
+   */
+  function getActivitiesForMonth(year: number, month: number): Record<string, DateActivities> {
+    const result: Record<string, DateActivities> = {};
+    const monthStart = startOfMonth(new Date(year, month));
+    const monthEnd = endOfMonth(new Date(year, month));
+    
+    // Get all days in the month
+    const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
+    
+    // Check each day for activities
+    daysInMonth.forEach(day => {
+      const dateStr = format(day, 'yyyy-MM-dd');
+      const dayActivities = activities.value[dateStr];
+      
+      if (dayActivities) {
+        result[dateStr] = dayActivities;
+      }
+    });
+    
+    return result;
+  }
+
+  /**
+   * Calculate current streak of consecutive days with activities
+   * @returns Number of consecutive days with activities
+   */
+  function getCurrentStreak(): number {
+    let streak = 0;
+    const today = new Date();
+    let checkDate = today;
+    let hasActivityToday = false;
+    
+    // Check if there's activity today
+    const todayStr = format(today, 'yyyy-MM-dd');
+    const todayActivities = activities.value[todayStr];
+    
+    if (todayActivities && Object.values(todayActivities).some(v => v > 0)) {
+      hasActivityToday = true;
+      streak = 1;
+    }
+    
+    // Check previous days
+    let daysBefore = 1;
+    let continuousStreak = hasActivityToday;
+    
+    while (continuousStreak) {
+      checkDate = subDays(today, daysBefore);
+      const dateStr = format(checkDate, 'yyyy-MM-dd');
+      const dateActivities = activities.value[dateStr];
+      
+      if (dateActivities && Object.values(dateActivities).some(v => v > 0)) {
+        streak++;
+        daysBefore++;
+      } else {
+        continuousStreak = false;
+      }
+    }
+    
+    // If no activity today, check if there was activity yesterday and count backwards
+    if (!hasActivityToday) {
+      checkDate = subDays(today, 1);
+      let daysBefore = 0;
+      continuousStreak = true;
+      
+      while (continuousStreak) {
+        const dateStr = format(checkDate, 'yyyy-MM-dd');
+        const dateActivities = activities.value[dateStr];
+        
+        if (dateActivities && Object.values(dateActivities).some(v => v > 0)) {
+          streak++;
+          daysBefore++;
+          checkDate = subDays(today, daysBefore + 1);
+        } else {
+          continuousStreak = false;
+        }
+      }
+    }
+    
+    return streak;
+  }
+
+  /**
+   * Get total activity counts for each activity type
+   * @returns Object with activity IDs as keys and total counts as values
+   */
+  function getTotalActivityCounts(): Record<string, number> {
+    const totals: Record<string, number> = {};
+    
+    Object.values(activities.value).forEach(dateActivities => {
+      Object.entries(dateActivities).forEach(([activityId, value]) => {
+        if (!totals[activityId]) {
+          totals[activityId] = 0;
+        }
+        totals[activityId] += value;
+      });
+    });
+    
+    return totals;
+  }
+
   /**
    * Load activities from local storage
    */
@@ -117,15 +221,13 @@ export const useTrackerStore = defineStore('tracker', () => {
       if (storedActivities) {
         activities.value = JSON.parse(storedActivities);
       } else {
-        // If no activities in localStorage, use sample activities
+        // Use sample data if no stored activities
         activities.value = sampleActivitiesData;
         saveToLocalStorage();
       }
     } catch (error) {
-      console.error('Failed to load activities from localStorage:', error);
-      // Use sample activities if there's an error
-      activities.value = sampleActivitiesData;
-      saveToLocalStorage();
+      console.error('Error loading activities:', error);
+      activities.value = {};
     }
   }
 
@@ -136,7 +238,7 @@ export const useTrackerStore = defineStore('tracker', () => {
     try {
       localStorage.setItem('activities', JSON.stringify(activities.value));
     } catch (error) {
-      console.error('Failed to save activities to localStorage:', error);
+      console.error('Error saving activities:', error);
     }
   }
 
@@ -146,7 +248,7 @@ export const useTrackerStore = defineStore('tracker', () => {
    * @param dateActivities - Activities to save for the date
    */
   function saveActivities(date: string, dateActivities: DateActivities) {
-    activities.value[date] = dateActivities;
+    activities.value[date] = { ...dateActivities };
     saveToLocalStorage();
   }
 
@@ -156,11 +258,12 @@ export const useTrackerStore = defineStore('tracker', () => {
    * @returns Boolean indicating success
    */
   function clearActivitiesForDate(date: string): boolean {
-    if (!activities.value[date]) return false;
-    
-    delete activities.value[date];
-    saveToLocalStorage();
-    return true;
+    if (activities.value[date]) {
+      delete activities.value[date];
+      saveToLocalStorage();
+      return true;
+    }
+    return false;
   }
 
   return {
@@ -168,6 +271,9 @@ export const useTrackerStore = defineStore('tracker', () => {
     allActivities,
     getActivitiesForDate,
     getActivitiesByType,
+    getActivitiesForMonth,
+    getCurrentStreak,
+    getTotalActivityCounts,
     loadActivities,
     saveActivities,
     clearActivitiesForDate

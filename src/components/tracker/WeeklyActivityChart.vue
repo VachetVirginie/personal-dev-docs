@@ -1,37 +1,38 @@
 <template>
-  <div>
-    <Bar
-      v-if="chartData"
-      :data="chartData"
-      :options="chartOptions"
-    />
+  <div class="weekly-chart-container">
+    <div v-if="!chartLoaded" class="chart-placeholder">
+      <div class="chart-loading">
+        <div class="loading-spinner"></div>
+        <div>Chargement du graphique...</div>
+      </div>
+    </div>
+    <canvas ref="chartCanvas" v-show="chartLoaded"></canvas>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, watch } from 'vue';
-import { Bar } from 'vue-chartjs';
-import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend } from 'chart.js';
+import { ref, computed, onMounted, watch } from 'vue';
 import { useTrackerStore } from '@/stores/tracker/tracker';
 import { format, startOfWeek, addDays } from 'date-fns';
-
-// Register Chart.js components
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip, Legend);
+import { fr } from 'date-fns/locale';
 
 const trackerStore = useTrackerStore();
+const chartCanvas = ref(null);
+const chartLoaded = ref(false);
+let chart = null;
 
 // Activity types with colors
 const activityTypes = [
-  { id: 'coding', name: 'Coding', color: 'rgba(37, 99, 235, 0.7)' },
-  { id: 'reading', name: 'Reading', color: 'rgba(16, 185, 129, 0.7)' }
+  { id: 'coding', name: 'Programmation', color: 'rgba(37, 99, 235, 0.7)' },
+  { id: 'reading', name: 'Lecture', color: 'rgba(16, 185, 129, 0.7)' }
 ];
 
 /**
  * Generate chart data for the current week
  */
-const chartData = computed(() => {
+const getChartData = () => {
   const today = new Date();
-  const weekStart = startOfWeek(today, { weekStartsOn: 0 });
+  const weekStart = startOfWeek(today, { weekStartsOn: 1 });
   const labels = [];
   const datasets = [];
   
@@ -45,68 +46,132 @@ const chartData = computed(() => {
       const dateStr = format(day, 'yyyy-MM-dd');
       const activities = trackerStore.getActivitiesForDate(dateStr);
       
-      labels[i] = format(day, 'EEE');
+      if (i === 0) {
+        labels.push(format(day, 'EEE', { locale: fr }));
+      }
+      
       data.push(activities ? (activities[type.id] || 0) : 0);
     }
     
     datasets.push({
       label: type.name,
+      data: data,
       backgroundColor: type.color,
-      data
+      borderColor: type.color.replace('0.7', '1'),
+      borderWidth: 1
     });
   });
   
-  return {
-    labels,
-    datasets
-  };
-});
+  return { labels, datasets };
+};
 
 /**
- * Chart options
+ * Initialize chart
  */
-const chartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  scales: {
-    x: {
-      stacked: false,
-      grid: {
-        display: false
-      }
-    },
-    y: {
-      stacked: false,
-      beginAtZero: true,
-      grid: {
-        color: 'rgba(0, 0, 0, 0.05)'
-      }
+const initChart = async () => {
+  if (!chartCanvas.value) return;
+  
+  try {
+    // Dynamically import Chart.js to avoid SSR issues
+    const { Chart, registerables } = await import('chart.js');
+    Chart.register(...registerables);
+    
+    // Destroy existing chart if it exists
+    if (chart) {
+      chart.destroy();
     }
-  },
-  plugins: {
-    legend: {
-      position: 'top',
-      labels: {
-        usePointStyle: true,
-        boxWidth: 6
+    
+    const ctx = chartCanvas.value.getContext('2d');
+    const { labels, datasets } = getChartData();
+    
+    chart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: {
+            position: 'top',
+          },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+          },
+        },
+        scales: {
+          y: {
+            beginAtZero: true
+          }
+        }
       }
-    },
-    tooltip: {
-      backgroundColor: 'rgba(0, 0, 0, 0.7)',
-      padding: 10,
-      cornerRadius: 4,
-      boxPadding: 3
-    }
+    });
+    
+    chartLoaded.value = true;
+  } catch (error) {
+    console.error('Failed to load chart:', error);
+    chartLoaded.value = false;
   }
 };
 
-// Watch for changes in activities and update chart
-watch(() => trackerStore.activities, () => {
-  // Chart will automatically update due to computed property
-}, { deep: true });
-
-// Load activities when component is mounted
-onMounted(() => {
+// Initialize chart on mount
+onMounted(async () => {
   trackerStore.loadActivities();
+  await initChart();
 });
+
+// Update chart when activities change
+watch(() => trackerStore.activities, async () => {
+  await initChart();
+}, { deep: true });
 </script>
+
+<style scoped>
+.weekly-chart-container {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.chart-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: #f9fafb;
+  border-radius: 0.5rem;
+}
+
+.chart-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: #6b7280;
+  font-size: 0.875rem;
+}
+
+.loading-spinner {
+  width: 2rem;
+  height: 2rem;
+  border: 3px solid #e5e7eb;
+  border-top-color: #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+</style>

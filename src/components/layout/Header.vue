@@ -34,6 +34,15 @@
               Activités
             </router-link>
           </li>
+          <li class="nav-item">
+            <router-link 
+              to="/settings" 
+              class="nav-link"
+              active-class="nav-link-active"
+            >
+              Paramètres
+            </router-link>
+          </li>
         </ul>
       </nav>
     </div>

@@ -15,9 +15,25 @@ const router = createRouter({
       component: () => import('../views/docs/DocsView.vue'),
     },
     {
+      path: '/docs/new',
+      name: 'new-document',
+      component: () => import('../views/docs/NewDocumentView.vue'),
+    },
+    {
+      path: '/docs/:id',
+      name: 'document',
+      component: () => import('../views/docs/DocumentView.vue'),
+      props: true
+    },
+    {
       path: '/tracker',
       name: 'tracker',
       component: () => import('../views/tracker/TrackerView.vue'),
+    },
+    {
+      path: '/settings',
+      name: 'settings',
+      component: () => import('../views/SettingsView.vue'),
     },
   ],
 })
